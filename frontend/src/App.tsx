@@ -163,7 +163,7 @@ export default function App() {
       <aside className="w-64 bg-[#1e293b] border-r border-slate-700 p-6 flex flex-col gap-8 hidden lg:flex">
         <div className="flex items-center gap-3 text-blue-400 font-bold text-xl">
           <Truck size={32} />
-          <span>SAMSUNG<br /><span className="text-xs text-slate-400 uppercase tracking-widest">Fleet Hub AM</span></span>
+          <span>FLEET<br /><span className="text-xs text-slate-400 uppercase tracking-widest">Monitor Hub AM</span></span>
         </div>
         <nav className="flex flex-col gap-2">
           <button onClick={() => setCurrentView('dashboard')} className={`flex items-center gap-3 p-3 rounded-lg ${currentView === 'dashboard' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}><LayoutDashboard size={20} /> Dashboard</button>
