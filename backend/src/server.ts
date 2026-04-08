@@ -1,10 +1,10 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { PrismaVehicleRepository } from './infra/repositories/PrismaVehicleRepository';
 
 const app = express();
 app.use(cors());
@@ -13,12 +13,13 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // URL padrão do Vite
+    origin: "http://localhost:5173", 
     methods: ["GET", "POST"]
   }
 });
 
-// 1. Simulação de Banco de Dados de Frota
+const vehicleRepo = new PrismaVehicleRepository();
+
 const vehicles = [
   { id: 'SAM-001', name: 'Logística Norte', driver: 'Marcelo Vinícius', speed: 0, fuel: 85, status: 'Em Rota' },
   { id: 'SAM-002', name: 'Expedição Distrito', driver: 'Ana Souza', speed: 0, fuel: 12, status: 'Alerta' },
@@ -28,33 +29,80 @@ const vehicles = [
   { id: 'SAM-006', name: 'Logística Sul', driver: 'Ricardo Gomes', speed: 0, fuel: 8, status: 'Alerta' },
 ];
 
-// 2. Rota REST (Para mostrar que você domina múltiplos protocolos)
+const ROUTES = {
+  'LOG-NORTE': [
+    { lat: -3.111, lng: -59.980 },
+    { lat: -3.113, lng: -59.982 },
+    { lat: -3.115, lng: -59.985 },
+    { lat: -3.118, lng: -59.988 },
+    { lat: -3.121, lng: -59.991 },
+    { lat: -3.125, lng: -59.995 },
+  ],
+  'DIST-CENTRO': [
+    { lat: -3.102, lng: -60.010 },
+    { lat: -3.105, lng: -60.012 },
+    { lat: -3.108, lng: -60.015 },
+    { lat: -3.112, lng: -60.018 },
+    { lat: -3.115, lng: -60.021 },
+  ]
+};
+
+// --- CONTROLE DE MOVIMENTO ---
+// Criamos um objeto para guardar em qual "ponto" da rota cada veículo está
+const vehiclePositions: Record<string, number> = {};
+vehicles.forEach(v => vehiclePositions[v.id] = 0);
+
 app.get('/api/vehicles', (req, res) => {
   res.json(vehicles);
 });
 
-// 3. Lógica Real-time via WebSockets
 io.on('connection', (socket) => {
   console.log('📡 Central de Operações: Conexão Estabelecida');
   
-  // Intervalo de Telemetria (Simula dados vindo dos sensores a cada 3 segundos)
-  const telemetryInterval = setInterval(() => {
-    const updatedFleet = vehicles.map(v => {
-      // Lógica de simulação: Só altera dados se estiver "Em Rota" ou "Alerta"
+  const telemetryInterval = setInterval(async () => {
+    
+    const updatedFleet = await Promise.all(vehicles.map(async (v) => {
       const isMoving = v.status !== 'Parado';
       
-      return {
+      // 1. Define qual rota usar (alternando entre as disponíveis)
+      const routeKey = v.id.endsWith('1') || v.id.endsWith('3') || v.id.endsWith('5') 
+        ? 'LOG-NORTE' 
+        : 'DIST-CENTRO';
+      const currentRoute = ROUTES[routeKey as keyof typeof ROUTES];
+
+      // 2. Lógica de Avanço: Se estiver movendo, incrementa o índice
+      if (isMoving) {
+        // O operador % garante que quando chegar no fim da lista, ele volte ao ponto 0
+        vehiclePositions[v.id] = (vehiclePositions[v.id] + 1) % currentRoute.length;
+      }
+
+      const point = currentRoute[vehiclePositions[v.id]];
+
+      const updatedData = {
         ...v,
-        speed: isMoving ? Math.floor(60 + Math.random() * 35) : 0,
-        fuel: Math.max(0, v.fuel - (isMoving ? Math.random() * 0.2 : 0)).toFixed(1),
-        lat: -3.118 + (Math.random() * 0.02),
-        lng: -60.011 + (Math.random() * 0.02),
+        speed: isMoving ? Math.floor(40 + Math.random() * 25) : 0,
+        fuel: Number(Math.max(0, v.fuel - (isMoving ? 0.05 : 0)).toFixed(1)),
+        lat: point.lat,
+        lng: point.lng,
         lastUpdate: new Date().toLocaleTimeString()
       };
-    });
 
-    // Envia a frota inteira para o Frontend
+      try {
+        await vehicleRepo.updateLocation(
+          updatedData.id, 
+          updatedData.lat, 
+          updatedData.lng, 
+          updatedData.speed
+        );
+      } catch (error) {
+        console.error(`❌ Erro ao persistir dados do veículo ${v.id}:`, error);
+      }
+
+      return updatedData;
+    }));
+
     socket.emit('fleet_update', updatedFleet);
+    
   }, 3000);
 
   socket.on('disconnect', () => {

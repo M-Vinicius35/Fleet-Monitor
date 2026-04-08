@@ -1,4 +1,13 @@
-"node_modules/" 
-"dist/" 
-".env" 
-".DS_Store" 
+# Dependências
+node_modules/
+.DS_Store
+
+# Backend
+backend/.env
+backend/dist/
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+
+# Frontend
+frontend/dist/
+frontend/.env
