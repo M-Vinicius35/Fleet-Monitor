@@ -1,8 +1,10 @@
 import { PrismaClient } from '@prisma/client';
+import { IVehicleRepository } from '../../domain/repositories/IVehicleRepository';
 
-const prisma = new PrismaClient(); // Ele lê o .env automaticamente na v6
+const prisma = new PrismaClient();
 
-export class PrismaVehicleRepository {
+// Agora a classe implementa a interface (contrato)
+export class PrismaVehicleRepository implements IVehicleRepository {
   async updateLocation(plate: string, lat: number, lng: number, speed: number) {
     try {
       const vehicle = await prisma.vehicle.upsert({
@@ -11,6 +13,7 @@ export class PrismaVehicleRepository {
         create: { plate, latitude: lat, longitude: lng, speed: speed },
       });
 
+      // Cria o rastro de histórico no banco
       await prisma.history.create({
         data: {
           vehicleId: vehicle.id,

@@ -4,7 +4,9 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { PrismaVehicleRepository } from './infra/repositories/PrismaVehicleRepository';
+
+// 1. Importei apenas a Factory (Injeção de Dependência)
+import { makeUpdateVehicleController } from './main/factories/update-vehicle-factory';
 
 const app = express();
 app.use(cors());
@@ -18,7 +20,9 @@ const io = new Server(server, {
   }
 });
 
-const vehicleRepo = new PrismaVehicleRepository();
+// 2. Instanciamos o Use Case através da Factory
+// Agora o server.ts não sabe o que é Prisma ou Repositório.
+const UpdateVehicleController = makeUpdateVehicleController();
 
 const vehicles = [
   { id: 'SAM-001', name: 'Logística Norte', driver: 'Marcelo Vinícius', speed: 0, fuel: 85, status: 'Em Rota' },
@@ -29,10 +33,7 @@ const vehicles = [
   { id: 'SAM-006', name: 'Logística Sul', driver: 'Ricardo Gomes', speed: 0, fuel: 8, status: 'Alerta' },
 ];
 
-// Rotas com pontos um pouco mais próximos para simular o GPS de 3 em 3 segundos
-// --- ROTAS REAIS DE MANAUS (High-Density Waypoints) ---
 const ROUTES = {
-  // Rota 1: Descendo a Avenida Constantino Nery (Da Arena da Amazônia sentido Centro)
   'LOG-NORTE': [
     { lat: -3.08412, lng: -60.02741 },
     { lat: -3.08465, lng: -60.02730 },
@@ -58,8 +59,6 @@ const ROUTES = {
     { lat: -3.09613, lng: -60.02485 },
     { lat: -3.09670, lng: -60.02472 }
   ],
-  
-  // Rota 2: Distrito Industrial (Entrando pela Bola da Suframa sentido Av. Buriti)
   'DIST-CENTRO': [
     { lat: -3.12050, lng: -59.98520 },
     { lat: -3.12100, lng: -59.98485 },
@@ -87,13 +86,12 @@ const ROUTES = {
   ]
 };
 
-// --- CONTROLE DE MOVIMENTO ---
 const vehiclePositions: Record<string, number> = {};
-const vehicleDirections: Record<string, number> = {}; // Guarda se está indo (1) ou voltando (-1)
+const vehicleDirections: Record<string, number> = {};
 
 vehicles.forEach(v => {
   vehiclePositions[v.id] = 0;
-  vehicleDirections[v.id] = 1; // Todos começam indo para frente
+  vehicleDirections[v.id] = 1;
 });
 
 app.get('/api/vehicles', (req, res) => {
@@ -113,19 +111,16 @@ io.on('connection', (socket) => {
         : 'DIST-CENTRO';
       const currentRoute = ROUTES[routeKey as keyof typeof ROUTES];
 
-      // 2. Lógica de Avanço (Ping-Pong)
       if (isMoving) {
         let pos = vehiclePositions[v.id];
         let dir = vehicleDirections[v.id];
 
-        pos += dir; // Avança ou recua
+        pos += dir;
 
-        // Se chegou no final da rua, vira o caminhão pra voltar
         if (pos >= currentRoute.length - 1) {
           pos = currentRoute.length - 1;
           dir = -1; 
         } 
-        // Se voltou pro início da rua, vira o caminhão pra ir
         else if (pos <= 0) {
           pos = 0;
           dir = 1;
@@ -146,15 +141,11 @@ io.on('connection', (socket) => {
         lastUpdate: new Date().toLocaleTimeString()
       };
 
+      // 3. CHAMO O USE CASE (Clean Architecture)
       try {
-        await vehicleRepo.updateLocation(
-          updatedData.id, 
-          updatedData.lat, 
-          updatedData.lng, 
-          updatedData.speed
-        );
+        await UpdateVehicleController.handle(updatedData);
       } catch (error) {
-        console.error(`❌ Erro ao persistir dados do veículo ${v.id}:`, error);
+        console.error(`❌ Erro ao persistir dados do veículo ${v.id} via Use Case:`, error);
       }
 
       return updatedData;
@@ -162,7 +153,7 @@ io.on('connection', (socket) => {
 
     socket.emit('fleet_update', updatedFleet);
     
-  }, 2000); // Reduzi para 2 segundos para o mapa ficar mais dinâmico na apresentação
+  }, 2000);
 
   socket.on('disconnect', () => {
     clearInterval(telemetryInterval);
@@ -172,5 +163,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`🚀 Samsung Fleet Backend rodando na porta ${PORT}`);
+  console.log(`🚀 Fleet Backend rodando na porta ${PORT}`);
 });
