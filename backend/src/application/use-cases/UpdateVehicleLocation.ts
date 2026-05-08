@@ -23,8 +23,8 @@ export class UpdateVehicleLocation {
     }
 
     // 2. Validação de Velocidade (Exemplo de regra de segurança)
-    if (speed > 120) {
-      console.log(`🚩 Alerta de Segurança: Veículo ${plate} acima do limite permitido!`);
+    if (speed > 90) {
+      console.log(`🚩 Alerta de Velocidade: Veículo ${plate} acima do limite permitido!`);
       // Aqui você poderia disparar um evento de log de infração
     }
 

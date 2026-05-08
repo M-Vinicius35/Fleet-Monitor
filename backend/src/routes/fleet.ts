@@ -1,6 +1,15 @@
 import { Router } from 'express';
+import { makeListVehiclesController } from '../main/factories/update-vehicle-factory';
 
 const router = Router();
+
+const listVehiclesController = makeListVehiclesController();
+
+router.get('/vehicles', async (req, res) => {
+  const vehicles = await listVehiclesController.handle();
+  res.json(vehicles);
+});
+
 
 // Mock de banco de dados (Para o MVP)
 let vehicles = [

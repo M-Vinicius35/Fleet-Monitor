@@ -5,6 +5,10 @@ const prisma = new PrismaClient();
 
 // Agora a classe implementa a interface (contrato)
 export class PrismaVehicleRepository implements IVehicleRepository {
+
+  async findALL() {
+    return await prisma.vehicle.findMany(); // Busca todos os veiculos registrados no BD
+  }
   async updateLocation(plate: string, lat: number, lng: number, speed: number) {
     try {
       const vehicle = await prisma.vehicle.upsert({
