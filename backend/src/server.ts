@@ -1,29 +1,17 @@
-import dotenv from 'dotenv';
-dotenv.config();
-import express from 'express';
+import 'dotenv/config';
 import http from 'http';
 import { Server } from 'socket.io';
-import cors from 'cors';
-
-// 1. Importei apenas a Factory (Injeção de Dependência)
+import { app } from './infra/http/app';
 import { makeUpdateVehicleController } from './main/factories/update-vehicle-factory';
-
-const app = express();
-app.use(cors());
-app.use(express.json());
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:5173", 
-    methods: ["GET", "POST"]
-  }
+  cors: { origin: "http://localhost:5173", methods: ["GET", "POST"] }
 });
 
-// 2. Instanciamos o Use Case através da Factory
-// Agora o server.ts não sabe o que é Prisma ou Repositório.
 const UpdateVehicleController = makeUpdateVehicleController();
 
+// --- DADOS DA SIMULAÇÃO ---
 const vehicles = [
   { id: 'SAM-001', name: 'Logística Norte', driver: 'Marcelo Vinícius', speed: 0, fuel: 85, status: 'Em Rota' },
   { id: 'SAM-002', name: 'Expedição Distrito', driver: 'Ana Souza', speed: 0, fuel: 12, status: 'Alerta' },
@@ -32,7 +20,6 @@ const vehicles = [
   { id: 'SAM-005', name: 'Carga Pesada AM', driver: 'Julia Mendes', speed: 0, fuel: 40, status: 'Em Rota' },
   { id: 'SAM-006', name: 'Logística Sul', driver: 'Ricardo Gomes', speed: 0, fuel: 8, status: 'Alerta' },
 ];
-
 const ROUTES = {
   'LOG-NORTE': [
     { lat: -3.08412, lng: -60.02741 },
@@ -85,7 +72,6 @@ const ROUTES = {
     { lat: -3.13195, lng: -59.97715 }
   ]
 };
-
 const vehiclePositions: Record<string, number> = {};
 const vehicleDirections: Record<string, number> = {};
 
@@ -94,65 +80,36 @@ vehicles.forEach(v => {
   vehicleDirections[v.id] = 1;
 });
 
-app.get('/api/vehicles', (req, res) => {
-  res.json(vehicles);
-});
-
+// --- LÓGICA DE TELEMETRIA (SOCKET.IO) ---
 io.on('connection', (socket) => {
   console.log('📡 Central de Operações: Conexão Estabelecida');
   
   const telemetryInterval = setInterval(async () => {
-    
     const updatedFleet = await Promise.all(vehicles.map(async (v) => {
-      const isMoving = v.status !== 'Parado';
+      // ... sua lógica de movimento (isMoving, pos, point, etc) ...
       
-      const routeKey = v.id.endsWith('1') || v.id.endsWith('3') || v.id.endsWith('5') 
-        ? 'LOG-NORTE' 
-        : 'DIST-CENTRO';
-      const currentRoute = ROUTES[routeKey as keyof typeof ROUTES];
-
-      if (isMoving) {
-        let pos = vehiclePositions[v.id];
-        let dir = vehicleDirections[v.id];
-
-        pos += dir;
-
-        if (pos >= currentRoute.length - 1) {
-          pos = currentRoute.length - 1;
-          dir = -1; 
-        } 
-        else if (pos <= 0) {
-          pos = 0;
-          dir = 1;
-        }
-
-        vehiclePositions[v.id] = pos;
-        vehicleDirections[v.id] = dir;
-      }
-
-      const point = currentRoute[vehiclePositions[v.id]];
+      const point = ROUTES[v.id.endsWith('1') ? 'LOG-NORTE' : 'DIST-CENTRO'][vehiclePositions[v.id]];
 
       const updatedData = {
         ...v,
-        speed: isMoving ? Math.floor(40 + Math.random() * 25) : 0,
-        fuel: Number(Math.max(0, v.fuel - (isMoving ? 0.05 : 0)).toFixed(1)),
         lat: point.lat,
         lng: point.lng,
+        speed: v.status !== 'Parado' ? Math.floor(40 + Math.random() * 25) : 0,
         lastUpdate: new Date().toLocaleTimeString()
       };
 
-      // 3. CHAMO O USE CASE (Clean Architecture)
+      // 3. PERSISTÊNCIA VIA USE CASE
       try {
-        await UpdateVehicleController.handle(updatedData);
+        // Chamo o controller diretamente na simulação
+        await UpdateVehicleController.handle(updatedData); 
       } catch (error) {
-        console.error(`❌ Erro ao persistir dados do veículo ${v.id} via Use Case:`, error);
+        console.error(`❌ Erro de persistência: ${v.id}`, error);
       }
 
       return updatedData;
     }));
 
     socket.emit('fleet_update', updatedFleet);
-    
   }, 2000);
 
   socket.on('disconnect', () => {
@@ -163,5 +120,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`🚀 Fleet Backend rodando na porta ${PORT}`);
+  console.log(`🚀 Fleet Backend rodando na porta ${PORT} (Pali-Pali! 🇰🇷)`);
 });

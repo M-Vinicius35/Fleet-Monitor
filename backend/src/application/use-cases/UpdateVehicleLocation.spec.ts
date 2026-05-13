@@ -1,6 +1,7 @@
 import { InMemoryVehicleRepository } from "../../tests/repositories/InMemoryVehicleRepository";
 import { UpdateVehicleLocation } from "./UpdateVehicleLocation";
 
+
 describe("UpdateVehicleLocation (QA Unit Test)", () => {
   it("deve ser capaz de atualizar a localização de um veículo", async () => {
     const repository = new InMemoryVehicleRepository();
@@ -52,4 +53,19 @@ describe("UpdateVehicleLocation (QA Unit Test)", () => {
     consoleSpy.mockRestore(); // Limpa o espião
   });
 
+  it("NÃO deve atualizar se a placa do veículo estiver vazia", async () => {
+    const repository = new InMemoryVehicleRepository();
+    const sut = new UpdateVehicleLocation(repository);
+
+    // Tentativa de envio sem placa
+    await expect(sut.execute({
+      plate: "",
+      lat: -3.10,
+      lng: -60.02,
+      speed: 45
+    })).rejects.toThrow("A placa do veículo é obrigatória.");
+
+    const vehicles = await repository.findALL();
+    expect(vehicles).toHaveLength(0); // Garante que nada foi salvo
+  });
 });

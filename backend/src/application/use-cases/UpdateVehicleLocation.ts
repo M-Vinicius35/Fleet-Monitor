@@ -16,6 +16,11 @@ export class UpdateVehicleLocation {
 
     // --- REGRAS DE QA / NEGÓCIO ---
     
+    if (!plate) {
+      console.error("❌ Erro de Telemetria: Pacote recebido sem identificação (placa vazia).");
+      throw new Error("A placa do veículo é obrigatória.");
+    }
+
     // 1. Validação de Coordenadas Básica
     if (lat === 0 || lng === 0) {
       console.warn(`⚠️ Alerta QA: Coordenada zerada recebida para o veículo ${plate}`);
@@ -25,7 +30,6 @@ export class UpdateVehicleLocation {
     // 2. Validação de Velocidade (Exemplo de regra de segurança)
     if (speed > 90) {
       console.log(`🚩 Alerta de Velocidade: Veículo ${plate} acima do limite permitido!`);
-      // Aqui você poderia disparar um evento de log de infração
     }
 
     // 3. Persistência
